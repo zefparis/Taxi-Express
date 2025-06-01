@@ -437,9 +437,9 @@ exports.updateVerificationStatus = async (req, res) => {
 
 /**
  * Get driver trip history
- * @route GET /api/drivers/:id/trips
+ * @route GET /api/drivers/trips
  */
-exports.getDriverTrips = async (req, res) => {
+exports.getDriverTripHistory = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, page = 1, limit = 10 } = req.query;
@@ -712,6 +712,471 @@ exports.updateVehicleInfo = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating vehicle information',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get driver details (profile)
+ * @route GET /api/drivers/profile
+ */
+exports.getDriverDetails = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const driver = await Driver.findOne({
+      where: { userId },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'firstName', 'lastName', 'email', 'phoneNumber', 'rating']
+      }]
+    });
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Driver profile not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: driver.id,
+        userId: driver.userId,
+        firstName: driver.user.firstName,
+        lastName: driver.user.lastName,
+        email: driver.user.email,
+        phoneNumber: driver.user.phoneNumber,
+        rating: driver.user.rating,
+        vehicleType: driver.vehicleType,
+        vehicleMake: driver.vehicleMake,
+        vehicleModel: driver.vehicleModel,
+        vehicleYear: driver.vehicleYear,
+        licensePlate: driver.licensePlate,
+        isAvailable: driver.isAvailable,
+        isVerified: driver.isVerified,
+        verificationStatus: driver.verificationStatus,
+        totalTrips: driver.totalTrips,
+        totalEarnings: driver.totalEarnings,
+        completionRate: driver.completionRate,
+        acceptanceRate: driver.acceptanceRate
+      }
+    });
+  } catch (error) {
+    console.error('Get driver details error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching driver details',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get driver verification status
+ * @route GET /api/drivers/verification-status
+ */
+exports.getVerificationStatus = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const driver = await Driver.findOne({
+      where: { userId },
+      attributes: ['id', 'verificationStatus', 'isVerified', 'rejectionReason']
+    });
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Driver profile not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        status: driver.verificationStatus,
+        isVerified: driver.isVerified,
+        rejectionReason: driver.rejectionReason || null,
+        nextSteps: driver.verificationStatus === 'rejected' ? 
+          'Please update your vehicle information and resubmit for verification' : 
+          'Your application is being processed'
+      }
+    });
+  } catch (error) {
+    console.error('Get verification status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching verification status',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get driver documents
+ * @route GET /api/drivers/documents
+ */
+exports.getDriverDocuments = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const driver = await Driver.findOne({
+      where: { userId },
+      attributes: ['id', 'licenseNumber', 'licenseExpiry', 'insuranceNumber', 'insuranceExpiry']
+    });
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Driver profile not found'
+      });
+    }
+
+    // In a real app, fetch document URLs from storage
+    res.status(200).json({
+      success: true,
+      data: {
+        drivingLicense: {
+          number: driver.licenseNumber,
+          expiry: driver.licenseExpiry,
+          documentUrl: 'https://example.com/license.jpg'
+        },
+        insurance: {
+          number: driver.insuranceNumber,
+          expiry: driver.insuranceExpiry,
+          documentUrl: 'https://example.com/insurance.pdf'
+        },
+        identityCard: {
+          documentUrl: 'https://example.com/id.jpg'
+        },
+        vehicleRegistration: {
+          documentUrl: 'https://example.com/registration.pdf'
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get driver documents error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching driver documents',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get driver ratings
+ * @route GET /api/drivers/ratings
+ */
+exports.getDriverRatings = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const driver = await Driver.findOne({
+      where: { userId },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['rating']
+      }]
+    });
+
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Driver profile not found'
+      });
+    }
+
+    // In a real app, fetch ratings from a ratings model
+    res.status(200).json({
+      success: true,
+      data: {
+        averageRating: driver.user.rating || 0,
+        totalRatings: driver.totalTrips || 0,
+        ratings: [
+          { id: 1, score: 5, comment: 'Great driver!', date: new Date() },
+          { id: 2, score: 4, comment: 'Good service', date: new Date() }
+        ]
+      }
+    });
+  } catch (error) {
+    console.error('Get driver ratings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching driver ratings',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get all drivers (admin only)
+ * @route GET /api/drivers
+ */
+exports.getAllDrivers = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, verified } = req.query;
+    
+    const where = {};
+    if (status) {
+      where.isAvailable = status === 'available';
+    }
+    if (verified !== undefined) {
+      where.isVerified = verified === 'true';
+    }
+    
+    const offset = (page - 1) * limit;
+    
+    const { count, rows: drivers } = await Driver.findAndCountAll({
+      where,
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'firstName', 'lastName', 'email', 'phoneNumber', 'rating']
+      }],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        drivers: drivers.map(driver => ({
+          id: driver.id,
+          userId: driver.userId,
+          firstName: driver.user.firstName,
+          lastName: driver.user.lastName,
+          email: driver.user.email,
+          phoneNumber: driver.user.phoneNumber,
+          rating: driver.user.rating,
+          vehicleType: driver.vehicleType,
+          vehicleMake: driver.vehicleMake,
+          vehicleModel: driver.vehicleModel,
+          isAvailable: driver.isAvailable,
+          isVerified: driver.isVerified,
+          verificationStatus: driver.verificationStatus,
+          totalTrips: driver.totalTrips
+        })),
+        pagination: {
+          total: count,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(count / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get all drivers error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching all drivers',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get driver support tickets
+ * @route GET /api/drivers/support/tickets
+ */
+exports.getSupportTickets = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { status, page = 1, limit = 10 } = req.query;
+    
+    // In a real app, fetch tickets from the database
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      data: {
+        tickets: [
+          {
+            id: '1',
+            subject: 'App issue',
+            status: 'open',
+            category: 'technical',
+            createdAt: new Date(),
+            lastUpdated: new Date()
+          },
+          {
+            id: '2',
+            subject: 'Payment dispute',
+            status: 'closed',
+            category: 'payment',
+            createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            lastUpdated: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)
+          }
+        ],
+        pagination: {
+          total: 2,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get driver support tickets error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching support tickets',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Create a support ticket
+ * @route POST /api/drivers/support/tickets
+ */
+exports.createSupportTicket = async (req, res) => {
+  try {
+    const { subject, category, description } = req.body;
+    
+    if (!subject || !category || !description) {
+      return res.status(400).json({
+        success: false,
+        message: 'Subject, category, and description are required'
+      });
+    }
+    
+    // Get the driver
+    const driver = await Driver.findOne({
+      where: { userId: req.user.id }
+    });
+    
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Driver profile not found'
+      });
+    }
+    
+    // In a real app, create a ticket in the database
+    // For now, return a placeholder response
+    const ticket = {
+      id: Date.now().toString(),
+      subject,
+      category,
+      description,
+      status: 'open',
+      driverId: driver.id,
+      userId: req.user.id,
+      createdAt: new Date(),
+      lastUpdated: new Date()
+    };
+    
+    // Create notification for admins
+    const admins = await User.findAll({
+      where: { role: 'admin', isActive: true }
+    });
+    
+    for (const admin of admins) {
+      await Notification.create({
+        userId: admin.id,
+        type: 'support_ticket',
+        title: 'New Support Ticket',
+        message: `Driver ${req.user.firstName} ${req.user.lastName} has created a new support ticket: ${subject}`,
+        data: { ticketId: ticket.id },
+        channel: 'app',
+        priority: 'medium'
+      });
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: 'Support ticket created successfully',
+      data: ticket
+    });
+  } catch (error) {
+    console.error('Create support ticket error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating support ticket',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Upload driver documents
+ * @route POST /api/drivers/documents
+ */
+exports.uploadDocuments = async (req, res) => {
+  try {
+    const { documentType, documentNumber, expiryDate } = req.body;
+    // In a real app, handle file upload with multer or similar
+    
+    if (!documentType || !documentNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Document type and number are required'
+      });
+    }
+    
+    // Get the driver
+    const driver = await Driver.findOne({
+      where: { userId: req.user.id }
+    });
+    
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Driver profile not found'
+      });
+    }
+    
+    // In a real app, save document info to database
+    // For now, return a placeholder response
+    const document = {
+      id: Date.now().toString(),
+      driverId: driver.id,
+      documentType,
+      documentNumber,
+      expiryDate: expiryDate ? new Date(expiryDate) : null,
+      status: 'pending_verification',
+      uploadedAt: new Date()
+    };
+    
+    // Update driver verification status if needed
+    if (driver.verificationStatus === 'unverified' || driver.verificationStatus === 'rejected') {
+      driver.verificationStatus = 'pending';
+      await driver.save();
+    }
+    
+    // Notify admins about new document upload
+    const admins = await User.findAll({
+      where: { role: 'admin', isActive: true }
+    });
+    
+    for (const admin of admins) {
+      await Notification.create({
+        userId: admin.id,
+        type: 'document_uploaded',
+        title: 'New Driver Document',
+        message: `Driver ${req.user.firstName} ${req.user.lastName} has uploaded a new document: ${documentType}`,
+        data: { driverId: driver.id, documentId: document.id },
+        channel: 'app',
+        priority: 'medium'
+      });
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: 'Document uploaded successfully',
+      data: document
+    });
+  } catch (error) {
+    console.error('Upload documents error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error uploading documents',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

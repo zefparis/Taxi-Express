@@ -171,7 +171,7 @@ exports.getDashboardStats = async (req, res) => {
  * Get all users with filtering and pagination
  * @route GET /api/admin/users
  */
-exports.getAllUsers = async (req, res) => {
+exports.getUsers = async (req, res) => {
   try {
     // Verify admin role
     if (req.user.role !== 'admin') {
@@ -256,9 +256,9 @@ exports.getAllUsers = async (req, res) => {
 
 /**
  * Get user details by ID
- * @route GET /api/admin/users/:id
+ * @route GET /api/admin/users/:userId
  */
-exports.getUserById = async (req, res) => {
+exports.getUserDetails = async (req, res) => {
   try {
     // Verify admin role
     if (req.user.role !== 'admin') {
@@ -855,6 +855,525 @@ exports.reviewFraudLog = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error reviewing fraud log',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Update driver verification status
+ * @route PUT /api/admin/drivers/:driverId/verification
+ */
+exports.updateDriverVerification = async (req, res) => {
+  try {
+    // Verify admin role
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Admin role required'
+      });
+    }
+
+    const { driverId } = req.params;
+    const { status, rejectionReason } = req.body;
+    
+    if (!status || !['verified', 'rejected', 'pending'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid status (verified, rejected, pending) is required'
+      });
+    }
+
+    const driver = await Driver.findByPk(driverId, {
+      include: [{
+        model: User,
+        as: 'userAccount',
+        attributes: ['id', 'firstName', 'lastName', 'email', 'phoneNumber']
+      }]
+    });
+    
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Driver not found'
+      });
+    }
+
+    // Store previous data for admin log
+    const previousData = { ...driver.toJSON() };
+
+    // Update driver verification status
+    driver.verificationStatus = status;
+    driver.isVerified = status === 'verified';
+    
+    if (status === 'rejected') {
+      driver.rejectionReason = rejectionReason || 'Documents did not meet requirements';
+    } else {
+      driver.rejectionReason = null;
+    }
+    
+    driver.verifiedAt = status === 'verified' ? new Date() : null;
+    driver.verifiedBy = status === 'verified' ? req.user.id : null;
+    await driver.save();
+
+    // Send notification to driver
+    let notificationMessage = '';
+    if (status === 'verified') {
+      notificationMessage = 'Congratulations! Your driver account has been verified. You can now start accepting rides.';
+    } else if (status === 'rejected') {
+      notificationMessage = `Your driver verification was rejected. Reason: ${driver.rejectionReason}. Please update your documents and try again.`;
+    } else {
+      notificationMessage = 'Your driver verification status has been updated to pending review.';
+    }
+
+    if (driver.userAccount) {
+      await Notification.create({
+        userId: driver.userAccount.id,
+        type: 'account_update',
+        title: 'Driver Verification Update',
+        message: notificationMessage,
+        data: JSON.stringify({ verificationStatus: status }),
+        priority: 'high',
+        channel: 'app'
+      });
+
+      // Send SMS notification if verified or rejected
+      if (status !== 'pending') {
+        try {
+          await sendSMS({
+            to: driver.userAccount.phoneNumber,
+            message: notificationMessage
+          });
+        } catch (smsError) {
+          console.error('Error sending SMS notification:', smsError);
+        }
+      }
+    }
+
+    // Create admin log
+    await createAdminLog({
+      adminId: req.user.id,
+      action: 'driver_verification',
+      targetType: 'driver',
+      targetId: driver.id,
+      details: `Admin updated driver verification status to ${status}${rejectionReason ? `. Reason: ${rejectionReason}` : ''}`,
+      previousData,
+      newData: driver.toJSON(),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Driver verification status updated to ${status}`,
+      data: {
+        driver
+      }
+    });
+  } catch (error) {
+    console.error('Admin update driver verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating driver verification status',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get all trips with filtering and pagination
+ * @route GET /api/admin/trips
+ */
+exports.getAllTrips = async (req, res) => {
+  try {
+    // Verify admin role
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Admin role required'
+      });
+    }
+
+    const { 
+      status, 
+      clientId, 
+      driverId, 
+      startDate, 
+      endDate, 
+      minPrice, 
+      maxPrice,
+      page = 1, 
+      limit = 20,
+      sortBy = 'createdAt',
+      sortOrder = 'DESC'
+    } = req.query;
+    
+    // Build query conditions
+    const where = {};
+    
+    if (status) {
+      where.status = status;
+    }
+    
+    if (clientId) {
+      where.clientId = clientId;
+    }
+    
+    if (driverId) {
+      where.driverId = driverId;
+    }
+    
+    if (startDate && endDate) {
+      where.createdAt = {
+        [Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    } else if (startDate) {
+      where.createdAt = {
+        [Op.gte]: new Date(startDate)
+      };
+    } else if (endDate) {
+      where.createdAt = {
+        [Op.lte]: new Date(endDate)
+      };
+    }
+    
+    if (minPrice && maxPrice) {
+      where.finalPrice = {
+        [Op.between]: [parseFloat(minPrice), parseFloat(maxPrice)]
+      };
+    } else if (minPrice) {
+      where.finalPrice = {
+        [Op.gte]: parseFloat(minPrice)
+      };
+    } else if (maxPrice) {
+      where.finalPrice = {
+        [Op.lte]: parseFloat(maxPrice)
+      };
+    }
+    
+    // Calculate pagination
+    const offset = (page - 1) * limit;
+    
+    // Get trips with pagination
+    const { count, rows: trips } = await Trip.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [[sortBy, sortOrder]],
+      include: [
+        {
+          model: User,
+          as: 'tripClient',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'phoneNumber']
+        },
+        {
+          model: Driver,
+          as: 'tripDriver',
+          attributes: ['id', 'verificationStatus', 'isVerified'],
+          include: [{
+            model: User,
+            as: 'userAccount',
+            attributes: ['id', 'firstName', 'lastName', 'email', 'phoneNumber']
+          }]
+        },
+        {
+          model: Payment,
+          as: 'payment',
+          required: false
+        }
+      ]
+    });
+
+    // Create admin log
+    await createAdminLog({
+      adminId: req.user.id,
+      action: 'trips_view',
+      targetType: 'trips',
+      details: `Admin viewed trips list with filters: ${JSON.stringify(req.query)}`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        trips,
+        pagination: {
+          total: count,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(count / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Admin get trips error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching trips',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get all payments with filtering and pagination
+ * @route GET /api/admin/payments
+ */
+exports.getAllPayments = async (req, res) => {
+  try {
+    // Verify admin role
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Admin role required'
+      });
+    }
+
+    const { 
+      status, 
+      clientId, 
+      driverId, 
+      paymentMethod,
+      startDate, 
+      endDate, 
+      minAmount, 
+      maxAmount,
+      page = 1, 
+      limit = 20,
+      sortBy = 'createdAt',
+      sortOrder = 'DESC'
+    } = req.query;
+    
+    // Build query conditions
+    const where = {};
+    
+    if (status) {
+      where.status = status;
+    }
+    
+    if (clientId) {
+      where.clientId = clientId;
+    }
+    
+    if (driverId) {
+      where.driverId = driverId;
+    }
+    
+    if (paymentMethod) {
+      where.paymentMethod = paymentMethod;
+    }
+    
+    if (startDate && endDate) {
+      where.createdAt = {
+        [Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    } else if (startDate) {
+      where.createdAt = {
+        [Op.gte]: new Date(startDate)
+      };
+    } else if (endDate) {
+      where.createdAt = {
+        [Op.lte]: new Date(endDate)
+      };
+    }
+    
+    if (minAmount && maxAmount) {
+      where.amount = {
+        [Op.between]: [parseFloat(minAmount), parseFloat(maxAmount)]
+      };
+    } else if (minAmount) {
+      where.amount = {
+        [Op.gte]: parseFloat(minAmount)
+      };
+    } else if (maxAmount) {
+      where.amount = {
+        [Op.lte]: parseFloat(maxAmount)
+      };
+    }
+    
+    // Calculate pagination
+    const offset = (page - 1) * limit;
+    
+    // Get payments with pagination
+    const { count, rows: payments } = await Payment.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [[sortBy, sortOrder]],
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'phoneNumber']
+        },
+        {
+          model: Driver,
+          as: 'driver',
+          attributes: ['id', 'verificationStatus', 'isVerified'],
+          include: [{
+            model: User,
+            as: 'userAccount',
+            attributes: ['id', 'firstName', 'lastName', 'email', 'phoneNumber']
+          }]
+        },
+        {
+          model: Trip,
+          as: 'trip'
+        }
+      ]
+    });
+
+    // Create admin log
+    await createAdminLog({
+      adminId: req.user.id,
+      action: 'payments_view',
+      targetType: 'payments',
+      details: `Admin viewed payments list with filters: ${JSON.stringify(req.query)}`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        payments,
+        pagination: {
+          total: count,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(count / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Admin get payments error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching payments',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get all withdrawal requests with filtering and pagination
+ * @route GET /api/admin/withdrawals
+ */
+exports.getWithdrawalRequests = async (req, res) => {
+  try {
+    // Verify admin role
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied: Admin role required'
+      });
+    }
+
+    const { 
+      status, 
+      driverId, 
+      startDate, 
+      endDate, 
+      minAmount, 
+      maxAmount,
+      page = 1, 
+      limit = 20,
+      sortBy = 'createdAt',
+      sortOrder = 'DESC'
+    } = req.query;
+    
+    // Build query conditions
+    const where = {
+      type: 'withdrawal'
+    };
+    
+    if (status) {
+      where.status = status;
+    }
+    
+    if (driverId) {
+      where.driverId = driverId;
+    }
+    
+    if (startDate && endDate) {
+      where.createdAt = {
+        [Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    } else if (startDate) {
+      where.createdAt = {
+        [Op.gte]: new Date(startDate)
+      };
+    } else if (endDate) {
+      where.createdAt = {
+        [Op.lte]: new Date(endDate)
+      };
+    }
+    
+    if (minAmount && maxAmount) {
+      where.amount = {
+        [Op.between]: [parseFloat(minAmount), parseFloat(maxAmount)]
+      };
+    } else if (minAmount) {
+      where.amount = {
+        [Op.gte]: parseFloat(minAmount)
+      };
+    } else if (maxAmount) {
+      where.amount = {
+        [Op.lte]: parseFloat(maxAmount)
+      };
+    }
+    
+    // Calculate pagination
+    const offset = (page - 1) * limit;
+    
+    // Get withdrawal requests with pagination
+    const { count, rows: withdrawals } = await Payment.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [[sortBy, sortOrder]],
+      include: [
+        {
+          model: Driver,
+          as: 'driver',
+          attributes: ['id', 'verificationStatus', 'isVerified'],
+          include: [{
+            model: User,
+            as: 'userAccount',
+            attributes: ['id', 'firstName', 'lastName', 'email', 'phoneNumber']
+          }]
+        }
+      ]
+    });
+
+    // Create admin log
+    await createAdminLog({
+      adminId: req.user.id,
+      action: 'withdrawals_view',
+      targetType: 'withdrawals',
+      details: `Admin viewed withdrawal requests with filters: ${JSON.stringify(req.query)}`,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent']
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        withdrawals,
+        pagination: {
+          total: count,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(count / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Admin get withdrawal requests error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching withdrawal requests',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
