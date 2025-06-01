@@ -5,6 +5,8 @@
 
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const { Op } = require('sequelize');
 const { User, Driver } = require('../models');
 const { generateToken, verifyToken } = require('../utils/jwt');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../services/email.service');
@@ -474,6 +476,109 @@ exports.logout = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error logging out',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Refresh access token using refresh token
+ * @route POST /api/auth/refresh
+ */
+exports.refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Refresh token is required'
+      });
+    }
+
+    // Verify refresh token
+    const decoded = verifyToken(refreshToken, process.env.JWT_REFRESH_SECRET || 'refresh-secret-key');
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid refresh token'
+      });
+    }
+
+    // Find user
+    const user = await User.findByPk(decoded.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Generate new access token
+    const newAccessToken = generateToken(user);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        token: newAccessToken
+      }
+    });
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error refreshing token',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Verify user phone number
+ * @route POST /api/auth/verify-phone
+ */
+exports.verifyPhone = async (req, res) => {
+  try {
+    const { phoneNumber, verificationCode } = req.body;
+
+    if (!phoneNumber || !verificationCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number and verification code are required'
+      });
+    }
+
+    // Find user with the phone number
+    const user = await User.findOne({ where: { phoneNumber } });
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // In a real app, verify the code against what was sent
+    // For now, we'll accept any 6-digit code for demonstration
+    if (!/^\d{6}$/.test(verificationCode)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid verification code'
+      });
+    }
+
+    // Update user's phone verification status
+    user.isPhoneVerified = true;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Phone number verified successfully'
+    });
+  } catch (error) {
+    console.error('Phone verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error verifying phone number',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

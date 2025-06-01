@@ -76,7 +76,6 @@ const AdminLog = sequelize.define('AdminLog', {
   timestamps: true
 });
 
-// Associations
-AdminLog.belongsTo(User, { foreignKey: 'adminId', as: 'admin' });
+// Associations are defined in models/index.js
 
 module.exports = AdminLog;

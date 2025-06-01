@@ -19,7 +19,7 @@ try {
   // Fallback to a simple Express server if the main application fails to load
   const express = require('express');
   const app = express();
-  const PORT = process.env.PORT || 5000;
+  const PORT = process.env.PORT || 5001; // Changed from 5000 to 5001 to avoid port conflicts
   
   app.get('/', (req, res) => {
     res.json({

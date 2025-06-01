@@ -112,8 +112,6 @@ const Payment = sequelize.define('Payment', {
   timestamps: true
 });
 
-// Associations
-Payment.belongsTo(Trip, { foreignKey: 'tripId', as: 'trip' });
-Payment.belongsTo(User, { foreignKey: 'clientId', as: 'client' });
+// Associations are defined in models/index.js
 
 module.exports = Payment;

@@ -119,7 +119,6 @@ const Driver = sequelize.define('Driver', {
   timestamps: true
 });
 
-// Associations
-Driver.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+// Associations are defined in models/index.js
 
 module.exports = Driver;

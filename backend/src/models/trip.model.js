@@ -146,8 +146,6 @@ const Trip = sequelize.define('Trip', {
   timestamps: true
 });
 
-// Associations
-Trip.belongsTo(User, { foreignKey: 'clientId', as: 'client' });
-Trip.belongsTo(Driver, { foreignKey: 'driverId', as: 'driver' });
+// Associations are defined in models/index.js
 
 module.exports = Trip;

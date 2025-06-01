@@ -28,11 +28,11 @@ exports.processPayment = async (req, res) => {
     // Find the trip
     const trip = await Trip.findByPk(tripId, {
       include: [
-        { model: User, as: 'client' },
+        { model: User, as: 'tripClient' },
         { 
           model: Driver, 
-          as: 'driver',
-          include: [{ model: User, as: 'user' }]
+          as: 'tripDriver',
+          include: [{ model: User, as: 'userAccount' }]
         }
       ]
     });
@@ -506,8 +506,8 @@ exports.processWithdrawal = async (req, res) => {
       include: [
         { 
           model: Driver, 
-          as: 'driver',
-          include: [{ model: User, as: 'user' }]
+          as: 'tripDriver',
+          include: [{ model: User, as: 'userAccount' }]
         }
       ]
     });
@@ -683,7 +683,7 @@ exports.getPaymentHistory = async (req, res) => {
         },
         {
           model: Driver,
-          as: 'driver',
+          as: 'tripDriver',
           include: [
             {
               model: User,
@@ -739,7 +739,7 @@ exports.getPaymentById = async (req, res) => {
         },
         {
           model: Driver,
-          as: 'driver',
+          as: 'tripDriver',
           include: [
             {
               model: User,
@@ -777,6 +777,451 @@ exports.getPaymentById = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching payment',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get payment details
+ * @route GET /api/payments/:paymentId
+ */
+exports.getPaymentDetails = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    
+    const payment = await Payment.findByPk(paymentId, {
+      include: [
+        {
+          model: Trip,
+          as: 'trip',
+          attributes: ['id', 'pickupAddress', 'destinationAddress', 'status', 'startTime', 'endTime']
+        },
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'firstName', 'lastName', 'phoneNumber']
+        },
+        {
+          model: Driver,
+          as: 'tripDriver',
+          include: [
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'firstName', 'lastName', 'phoneNumber']
+            }
+          ]
+        }
+      ]
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment not found'
+      });
+    }
+
+    // Check if user has permission to view this payment
+    if (req.user.role !== 'admin' && 
+        payment.clientId !== req.user.id && 
+        (!payment.driver || payment.driver.userId !== req.user.id)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this payment'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: payment
+    });
+  } catch (error) {
+    console.error('Get payment details error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching payment details',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Add funds to wallet
+ * @route POST /api/payments/wallet/add
+ */
+exports.addFundsToWallet = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { amount, paymentMethod, transactionReference } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid amount is required'
+      });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // In a real app, process payment here
+    // For now, just update the balance
+    user.walletBalance = (user.walletBalance || 0) + parseFloat(amount);
+    await user.save();
+
+    // Create a payment record for the wallet top-up
+    await Payment.create({
+      clientId: userId,
+      amount,
+      paymentMethod,
+      transactionReference,
+      status: 'completed',
+      transactionType: 'wallet_topup',
+      paymentInitiatedAt: new Date(),
+      paymentCompletedAt: new Date()
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Wallet topped up successfully',
+      data: {
+        newBalance: user.walletBalance,
+        currency: 'XOF',
+        transactionId: Date.now().toString()
+      }
+    });
+  } catch (error) {
+    console.error('Add funds to wallet error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding funds to wallet',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Withdraw funds from wallet
+ * @route POST /api/payments/wallet/withdraw
+ */
+exports.withdrawFunds = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { amount, bankAccount, mobileMoneyNumber } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid amount is required'
+      });
+    }
+
+    // Check if user is a driver
+    const driver = await Driver.findOne({
+      where: { userId },
+      include: [{ model: User, as: 'user' }]
+    });
+
+    if (!driver) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only drivers can withdraw funds'
+      });
+    }
+
+    if (parseFloat(driver.user.walletBalance) < parseFloat(amount)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Insufficient wallet balance'
+      });
+    }
+
+    // Create withdrawal request
+    const withdrawal = await Payment.create({
+      driverId: driver.id,
+      clientId: userId,
+      amount,
+      status: 'pending',
+      transactionType: 'withdrawal',
+      paymentMethod: mobileMoneyNumber ? 'mobile_money' : 'bank_transfer',
+      additionalData: JSON.stringify({
+        bankAccount,
+        mobileMoneyNumber
+      }),
+      paymentInitiatedAt: new Date()
+    });
+
+    // Notify admins about the withdrawal request
+    const admins = await User.findAll({
+      where: { role: 'admin', isActive: true }
+    });
+
+    for (const admin of admins) {
+      await Notification.create({
+        userId: admin.id,
+        type: 'system_alert',
+        title: 'Withdrawal Request',
+        message: `Driver ${driver.id} has requested a withdrawal of ${amount} XOF.`,
+        channel: 'app',
+        priority: 'medium'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Withdrawal request submitted successfully',
+      data: {
+        withdrawalId: withdrawal.id,
+        amount,
+        status: 'pending',
+        requestDate: withdrawal.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Withdraw funds error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing withdrawal request',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Initialize mobile money payment
+ * @route POST /api/payments/mobile-money/initialize
+ */
+exports.initializeMobileMoneyPayment = async (req, res) => {
+  try {
+    const { amount, phoneNumber, provider, tripId } = req.body;
+    
+    if (!amount || !phoneNumber || !provider) {
+      return res.status(400).json({
+        success: false,
+        message: 'Amount, phone number, and provider are required'
+      });
+    }
+
+    // In a real app, integrate with mobile money provider API
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      message: 'Mobile money payment initiated',
+      data: {
+        transactionId: Date.now().toString(),
+        amount,
+        provider,
+        status: 'pending',
+        instructions: 'Please check your phone for payment confirmation'
+      }
+    });
+  } catch (error) {
+    console.error('Initialize mobile money payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error initiating mobile money payment',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Mobile money payment callback
+ * @route POST /api/payments/mobile-money/callback
+ */
+exports.mobileMoneyCallback = async (req, res) => {
+  try {
+    const { transactionId, status, phoneNumber } = req.body;
+    
+    // In a real app, verify the callback with the mobile money provider
+    // and update the payment status accordingly
+    
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      message: 'Mobile money callback processed'
+    });
+  } catch (error) {
+    console.error('Mobile money callback error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing mobile money callback',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Initialize card payment
+ * @route POST /api/payments/card/initialize
+ */
+exports.initializeCardPayment = async (req, res) => {
+  try {
+    const { amount, cardToken, tripId } = req.body;
+    
+    if (!amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Amount is required'
+      });
+    }
+
+    // In a real app, integrate with card payment provider API (e.g., Stripe)
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      message: 'Card payment initiated',
+      data: {
+        transactionId: Date.now().toString(),
+        amount,
+        status: 'pending',
+        redirectUrl: 'https://example.com/payment/confirm'
+      }
+    });
+  } catch (error) {
+    console.error('Initialize card payment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error initiating card payment',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Card payment callback
+ * @route POST /api/payments/card/callback
+ */
+exports.cardPaymentCallback = async (req, res) => {
+  try {
+    const { transactionId, status } = req.body;
+    
+    // In a real app, verify the callback with the card payment provider
+    // and update the payment status accordingly
+    
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      message: 'Card payment callback processed'
+    });
+  } catch (error) {
+    console.error('Card payment callback error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing card payment callback',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get saved payment methods
+ * @route GET /api/payments/methods
+ */
+exports.getSavedPaymentMethods = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // In a real app, fetch saved payment methods from the database
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      data: {
+        methods: [
+          {
+            id: '1',
+            type: 'card',
+            brand: 'Visa',
+            last4: '4242',
+            expiryMonth: 12,
+            expiryYear: 2025,
+            isDefault: true
+          },
+          {
+            id: '2',
+            type: 'mobile_money',
+            provider: 'Orange Money',
+            phoneNumber: '+2250123456789',
+            isDefault: false
+          }
+        ]
+      }
+    });
+  } catch (error) {
+    console.error('Get saved payment methods error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching saved payment methods',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Add payment method
+ * @route POST /api/payments/methods
+ */
+exports.addPaymentMethod = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { type, cardToken, mobileMoneyProvider, phoneNumber } = req.body;
+    
+    if (!type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment method type is required'
+      });
+    }
+
+    // In a real app, save the payment method to the database
+    // For now, return a placeholder response
+    res.status(201).json({
+      success: true,
+      message: 'Payment method added successfully',
+      data: {
+        id: Date.now().toString(),
+        type,
+        isDefault: false,
+        createdAt: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Add payment method error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding payment method',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Delete payment method
+ * @route DELETE /api/payments/methods/:methodId
+ */
+exports.deletePaymentMethod = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { methodId } = req.params;
+    
+    // In a real app, delete the payment method from the database
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      message: 'Payment method deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete payment method error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting payment method',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

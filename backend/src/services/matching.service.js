@@ -51,7 +51,7 @@ exports.findOptimalDriver = async (tripId) => {
       include: [
         {
           model: User,
-          as: 'user',
+          as: 'userAccount',
           attributes: ['id', 'firstName', 'lastName', 'rating', 'preferredLanguage']
         }
       ],
@@ -219,7 +219,7 @@ exports.getDriverMatchingStats = async (driverId) => {
       include: [
         {
           model: User,
-          as: 'user',
+          as: 'userAccount',
           attributes: ['id', 'firstName', 'lastName', 'rating']
         }
       ]
@@ -300,11 +300,11 @@ exports.getClientMatchingStats = async (clientId) => {
       include: [
         {
           model: Driver,
-          as: 'driver',
+          as: 'tripDriver',
           include: [
             {
               model: User,
-              as: 'user',
+              as: 'userAccount',
               attributes: ['id', 'firstName', 'lastName']
             }
           ]

@@ -4,21 +4,43 @@
  */
 
 const rateLimit = require('express-rate-limit');
-const RedisStore = require('rate-limit-redis');
-const { createClient } = require('redis');
 
-// Redis client for production
-let redisClient;
+// Note: Redis store implementation is commented out for now to simplify development
+// In production, we would use Redis for rate limiting, but for now we'll use memory store
+// const { createClient } = require('redis');
+// const RedisStore = require('rate-limit-redis');
+
+// Redis client for production - disabled for now
+// let redisClient;
+// let redisStore;
+
+// Only initialize Redis in production - disabled for now
+/*
 if (process.env.NODE_ENV === 'production') {
-  redisClient = createClient({
-    url: process.env.REDIS_URL,
-    password: process.env.REDIS_PASSWORD
-  });
-  
-  redisClient.on('error', (err) => {
-    console.error('Redis error:', err);
-  });
+  try {
+    redisClient = createClient({
+      url: process.env.REDIS_URL || 'redis://localhost:6379',
+      password: process.env.REDIS_PASSWORD
+    });
+    
+    redisClient.on('error', (err) => {
+      console.error('Redis error:', err);
+      console.warn('Falling back to memory store for rate limiting');
+    });
+    
+    // Create Redis store for rate limiting
+    redisStore = new RedisStore({
+      client: redisClient
+    });
+  } catch (error) {
+    console.error('Redis initialization error:', error);
+    console.warn('Falling back to memory store for rate limiting');
+  }
 }
+*/
+
+// For now, we'll use a simple console message to indicate we're in development mode
+console.log('Rate limiting: Using memory store (Redis disabled for development)');
 
 /**
  * Create a rate limiter middleware
@@ -43,13 +65,10 @@ exports.rateLimiter = (options) => {
   // Merge default options with provided options
   const limiterOptions = { ...defaultOptions, ...options };
   
-  // Use Redis store in production
-  if (process.env.NODE_ENV === 'production' && redisClient) {
-    limiterOptions.store = new RedisStore({
-      sendCommand: (...args) => redisClient.sendCommand(args),
-      prefix: 'rl:taxi-express:'
-    });
-  }
+  // Redis store is disabled for now
+  // if (process.env.NODE_ENV === 'production' && redisStore) {
+  //   limiterOptions.store = redisStore;
+  // }
   
   return rateLimit(limiterOptions);
 };

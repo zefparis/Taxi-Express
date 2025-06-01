@@ -408,7 +408,7 @@ exports.getUserRiskAssessment = async (userId) => {
       include: [
         {
           model: User,
-          as: 'driver',
+          as: 'tripDriver',
           required: false
         }
       ]
@@ -428,7 +428,7 @@ exports.getUserRiskAssessment = async (userId) => {
       include: [
         {
           model: User,
-          as: 'driver',
+          as: 'tripDriver',
           required: false
         }
       ]

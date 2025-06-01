@@ -103,7 +103,7 @@ exports.requestTrip = async (req, res) => {
 
           // Notify driver
           const driver = await Driver.findByPk(result.driverId, {
-            include: [{ model: User, as: 'user' }]
+            include: [{ model: User, as: 'userAccount' }]
           });
 
           if (driver) {
@@ -191,11 +191,11 @@ exports.acceptTrip = async (req, res) => {
     // Find trip
     const trip = await Trip.findByPk(id, {
       include: [
-        { model: User, as: 'client' },
+        { model: User, as: 'tripClient' },
         { 
           model: Driver, 
-          as: 'driver',
-          include: [{ model: User, as: 'user' }]
+          as: 'tripDriver',
+          include: [{ model: User, as: 'userAccount' }]
         }
       ]
     });
@@ -300,11 +300,11 @@ exports.startTrip = async (req, res) => {
     // Find trip
     const trip = await Trip.findByPk(id, {
       include: [
-        { model: User, as: 'client' },
+        { model: User, as: 'tripClient' },
         { 
           model: Driver, 
-          as: 'driver',
-          include: [{ model: User, as: 'user' }]
+          as: 'tripDriver',
+          include: [{ model: User, as: 'userAccount' }]
         }
       ]
     });
@@ -389,11 +389,11 @@ exports.completeTrip = async (req, res) => {
     // Find trip
     const trip = await Trip.findByPk(id, {
       include: [
-        { model: User, as: 'client' },
+        { model: User, as: 'tripClient' },
         { 
           model: Driver, 
-          as: 'driver',
-          include: [{ model: User, as: 'user' }]
+          as: 'tripDriver',
+          include: [{ model: User, as: 'userAccount' }]
         }
       ]
     });
@@ -556,11 +556,11 @@ exports.cancelTrip = async (req, res) => {
     // Find trip
     const trip = await Trip.findByPk(id, {
       include: [
-        { model: User, as: 'client' },
+        { model: User, as: 'tripClient' },
         { 
           model: Driver, 
-          as: 'driver',
-          include: [{ model: User, as: 'user' }]
+          as: 'tripDriver',
+          include: [{ model: User, as: 'userAccount' }]
         }
       ]
     });
@@ -720,6 +720,62 @@ exports.cancelTrip = async (req, res) => {
 
 /**
  * Get trip details
+ * @route GET /api/trips/:tripId
+ */
+exports.getTripDetails = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    
+    // Find trip with all related data
+    const trip = await Trip.findByPk(tripId, {
+      include: [
+        { model: User, as: 'tripClient', attributes: ['id', 'firstName', 'lastName', 'phoneNumber', 'profilePhoto'] },
+        { 
+          model: Driver, 
+          as: 'tripDriver',
+          include: [{ 
+            model: User, 
+            as: 'userAccount', 
+            attributes: ['id', 'firstName', 'lastName', 'phoneNumber', 'profilePhoto'] 
+          }]
+        },
+        { model: Payment, as: 'tripPayment' }
+      ]
+    });
+
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
+    // Check if user has permission to view this trip
+    if (req.user.role !== 'admin' && 
+        req.user.id !== trip.clientId && 
+        (!trip.driver || req.user.id !== trip.driver.userId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this trip'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: trip
+    });
+  } catch (error) {
+    console.error('Get trip details error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching trip details',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get trip details
  * @route GET /api/trips/:id
  */
 exports.getTripById = async (req, res) => {
@@ -730,15 +786,15 @@ exports.getTripById = async (req, res) => {
       include: [
         { 
           model: User, 
-          as: 'client',
+          as: 'tripClient',
           attributes: ['id', 'firstName', 'lastName', 'phoneNumber', 'rating']
         },
         { 
           model: Driver, 
-          as: 'driver',
+          as: 'tripDriver',
           include: [{ 
             model: User, 
-            as: 'user',
+            as: 'userAccount',
             attributes: ['id', 'firstName', 'lastName', 'phoneNumber', 'rating']
           }]
         }
@@ -789,11 +845,11 @@ exports.getTripById = async (req, res) => {
 
 /**
  * Report trip incident
- * @route PATCH /api/trips/:id/incident
+ * @route POST /api/trips/:tripId/incidents
  */
 exports.reportIncident = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { tripId } = req.params;
     const { incidentDetails } = req.body;
     
     if (!incidentDetails) {
@@ -804,13 +860,13 @@ exports.reportIncident = async (req, res) => {
     }
 
     // Find trip
-    const trip = await Trip.findByPk(id, {
+    const trip = await Trip.findByPk(tripId, {
       include: [
-        { model: User, as: 'client' },
+        { model: User, as: 'tripClient' },
         { 
           model: Driver, 
-          as: 'driver',
-          include: [{ model: User, as: 'user' }]
+          as: 'tripDriver',
+          include: [{ model: User, as: 'userAccount' }]
         }
       ]
     });
@@ -911,6 +967,684 @@ exports.reportIncident = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error reporting incident',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Rate a driver after trip completion
+ * @route POST /api/trips/:tripId/rate-driver
+ */
+exports.rateDriver = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const { rating, comment } = req.body;
+    
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid rating between 1 and 5 is required'
+      });
+    }
+
+    // Find trip
+    const trip = await Trip.findByPk(tripId, {
+      include: [{ 
+        model: Driver, 
+        as: 'tripDriver',
+        include: [{ model: User, as: 'userAccount' }]
+      }]
+    });
+
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
+    // Check if user is the client of this trip
+    if (trip.clientId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to rate this trip'
+      });
+    }
+
+    // Check if trip is completed
+    if (trip.status !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Can only rate completed trips'
+      });
+    }
+
+    // Check if driver has already been rated for this trip
+    if (trip.driverRating) {
+      return res.status(400).json({
+        success: false,
+        message: 'Driver has already been rated for this trip'
+      });
+    }
+
+    // Update trip with driver rating
+    trip.driverRating = rating;
+    trip.driverRatingComment = comment || '';
+    await trip.save();
+
+    // Update driver's average rating
+    if (trip.driverId) {
+      const driver = await Driver.findByPk(trip.driverId);
+      if (driver) {
+        const totalRatings = await Trip.count({
+          where: {
+            driverId: driver.id,
+            driverRating: { [Op.not]: null }
+          }
+        });
+
+        const sumRatings = await Trip.sum('driverRating', {
+          where: {
+            driverId: driver.id,
+            driverRating: { [Op.not]: null }
+          }
+        });
+
+        driver.averageRating = sumRatings / totalRatings;
+        driver.totalRatings = totalRatings;
+        await driver.save();
+
+        // Notify driver about the rating
+        await Notification.create({
+          userId: driver.userId,
+          type: 'rating_received',
+          title: 'New Rating Received',
+          message: `You received a ${rating}-star rating for your trip.`,
+          data: { tripId: trip.id, rating },
+          channel: 'app',
+          priority: 'medium'
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Driver rated successfully',
+      data: {
+        tripId: trip.id,
+        driverRating: trip.driverRating,
+        driverRatingComment: trip.driverRatingComment
+      }
+    });
+  } catch (error) {
+    console.error('Rate driver error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error rating driver',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Rate a client after trip completion
+ * @route POST /api/trips/:tripId/rate-client
+ */
+exports.rateClient = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const { rating, comment } = req.body;
+    
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid rating between 1 and 5 is required'
+      });
+    }
+
+    // Find trip
+    const trip = await Trip.findByPk(tripId, {
+      include: [{ model: User, as: 'tripClient' }]
+    });
+
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
+    // Check if user is the driver of this trip
+    const driver = await Driver.findOne({ where: { userId: req.user.id } });
+    if (!driver || trip.driverId !== driver.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to rate this client'
+      });
+    }
+
+    // Check if trip is completed
+    if (trip.status !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Can only rate completed trips'
+      });
+    }
+
+    // Check if client has already been rated for this trip
+    if (trip.clientRating) {
+      return res.status(400).json({
+        success: false,
+        message: 'Client has already been rated for this trip'
+      });
+    }
+
+    // Update trip with client rating
+    trip.clientRating = rating;
+    trip.clientRatingComment = comment || '';
+    await trip.save();
+
+    // Update client's average rating
+    const client = await User.findByPk(trip.clientId);
+    if (client) {
+      const totalRatings = await Trip.count({
+        where: {
+          clientId: client.id,
+          clientRating: { [Op.not]: null }
+        }
+      });
+
+      const sumRatings = await Trip.sum('clientRating', {
+        where: {
+          clientId: client.id,
+          clientRating: { [Op.not]: null }
+        }
+      });
+
+      client.averageRating = sumRatings / totalRatings;
+      client.totalRatings = totalRatings;
+      await client.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Client rated successfully',
+      data: {
+        tripId: trip.id,
+        clientRating: trip.clientRating,
+        clientRatingComment: trip.clientRatingComment
+      }
+    });
+  } catch (error) {
+    console.error('Rate client error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error rating client',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get trip tracking information
+ * @route GET /api/trips/:tripId/tracking
+ */
+exports.getTripTracking = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    
+    // Find trip with tracking data
+    const trip = await Trip.findByPk(tripId, {
+      attributes: ['id', 'status', 'pickupLocation', 'destinationLocation', 'currentLocation', 'estimatedArrivalTime', 'startTime'],
+      include: [
+        { 
+          model: Driver, 
+          as: 'tripDriver',
+          attributes: ['id', 'currentLocation', 'isAvailable'],
+          include: [{ 
+            model: User, 
+            as: 'userAccount', 
+            attributes: ['id', 'firstName', 'lastName', 'phoneNumber', 'profilePhoto'] 
+          }]
+        }
+      ]
+    });
+
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
+    // Check if user has permission to view this trip tracking
+    if (req.user.role !== 'admin' && 
+        req.user.id !== trip.clientId && 
+        (!trip.driver || req.user.id !== trip.driver.userId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view this trip tracking'
+      });
+    }
+
+    // Get estimated time remaining if trip is active
+    let estimatedTimeRemaining = null;
+    if (trip.status === 'active' && trip.startTime) {
+      const currentTime = new Date();
+      const tripDuration = trip.estimatedDuration || 0; // in seconds
+      const elapsedTime = Math.floor((currentTime - trip.startTime) / 1000); // in seconds
+      estimatedTimeRemaining = Math.max(0, tripDuration - elapsedTime);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        tripId: trip.id,
+        status: trip.status,
+        currentLocation: trip.currentLocation || (trip.driver ? trip.driver.currentLocation : null),
+        destinationLocation: trip.destinationLocation,
+        estimatedArrivalTime: trip.estimatedArrivalTime,
+        estimatedTimeRemaining,
+        driver: trip.driver ? {
+          id: trip.driver.id,
+          name: `${trip.driver.user.firstName} ${trip.driver.user.lastName}`,
+          phoneNumber: trip.driver.user.phoneNumber,
+          profilePhoto: trip.driver.user.profilePhoto
+        } : null
+      }
+    });
+  } catch (error) {
+    console.error('Get trip tracking error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching trip tracking',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Extend trip with additional stops
+ * @route PUT /api/trips/:tripId/extend
+ */
+exports.extendTrip = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const { newDestinationLocation, newDestinationAddress, additionalDistance, additionalDuration } = req.body;
+    
+    if (!newDestinationLocation || !newDestinationAddress || !additionalDistance || !additionalDuration) {
+      return res.status(400).json({
+        success: false,
+        message: 'New destination details and additional distance/duration are required'
+      });
+    }
+
+    // Find trip
+    const trip = await Trip.findByPk(tripId);
+
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
+    // Check if user is the client of this trip
+    if (trip.clientId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to extend this trip'
+      });
+    }
+
+    // Check if trip is in a state that can be extended
+    if (trip.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only active trips can be extended'
+      });
+    }
+
+    // Calculate additional price
+    const additionalPrice = await calculatePrice(additionalDistance, additionalDuration);
+
+    // Store original destination for history
+    const originalDestination = {
+      address: trip.destinationAddress,
+      location: trip.destinationLocation
+    };
+
+    // Update trip with new destination and price
+    trip.destinationLocation = newDestinationLocation;
+    trip.destinationAddress = newDestinationAddress;
+    trip.estimatedDistance = parseFloat(trip.estimatedDistance) + parseFloat(additionalDistance);
+    trip.estimatedDuration = parseInt(trip.estimatedDuration) + parseInt(additionalDuration);
+    trip.estimatedPrice = parseFloat(trip.estimatedPrice) + parseFloat(additionalPrice);
+    trip.tripExtensions = trip.tripExtensions || [];
+    trip.tripExtensions.push({
+      timestamp: new Date(),
+      originalDestination,
+      newDestination: {
+        address: newDestinationAddress,
+        location: newDestinationLocation
+      },
+      additionalPrice,
+      additionalDistance,
+      additionalDuration
+    });
+
+    await trip.save();
+
+    // Notify driver about trip extension
+    if (trip.driverId) {
+      const driver = await Driver.findByPk(trip.driverId, {
+        include: [{ model: User, as: 'userAccount' }]
+      });
+
+      if (driver) {
+        await Notification.create({
+          userId: driver.userId,
+          type: 'trip_update',
+          title: 'Trip Extended',
+          message: `The client has extended the trip to ${newDestinationAddress}`,
+          data: { tripId: trip.id },
+          channel: 'app',
+          priority: 'high'
+        });
+
+        // Emit socket event for trip extension
+        io.to(`driver_${driver.userId}`).emit('trip_extended', {
+          tripId: trip.id,
+          newDestination: newDestinationAddress,
+          additionalPrice
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Trip extended successfully',
+      data: {
+        tripId: trip.id,
+        newDestinationAddress: trip.destinationAddress,
+        totalDistance: trip.estimatedDistance,
+        totalDuration: trip.estimatedDuration,
+        totalPrice: trip.estimatedPrice,
+        additionalPrice
+      }
+    });
+  } catch (error) {
+    console.error('Extend trip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error extending trip',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get all trips (admin only)
+ * @route GET /api/trips
+ */
+exports.getAllTrips = async (req, res) => {
+  try {
+    const { status, startDate, endDate, limit = 20, offset = 0 } = req.query;
+    
+    // Build query conditions
+    const whereConditions = {};
+    
+    if (status) {
+      whereConditions.status = status;
+    }
+    
+    if (startDate && endDate) {
+      whereConditions.createdAt = {
+        [Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    } else if (startDate) {
+      whereConditions.createdAt = {
+        [Op.gte]: new Date(startDate)
+      };
+    } else if (endDate) {
+      whereConditions.createdAt = {
+        [Op.lte]: new Date(endDate)
+      };
+    }
+
+    // Get trips with pagination
+    const { count, rows: trips } = await Trip.findAndCountAll({
+      where: whereConditions,
+      include: [
+        { model: User, as: 'tripClient', attributes: ['id', 'firstName', 'lastName', 'phoneNumber'] },
+        { 
+          model: Driver, 
+          as: 'tripDriver',
+          include: [{ 
+            model: User, 
+            as: 'userAccount', 
+            attributes: ['id', 'firstName', 'lastName', 'phoneNumber'] 
+          }]
+        },
+        { model: Payment, as: 'tripPayment', attributes: ['id', 'amount', 'status', 'paymentMethod'] }
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        trips,
+        pagination: {
+          total: count,
+          limit: parseInt(limit),
+          offset: parseInt(offset),
+          pages: Math.ceil(count / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get all trips error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching trips',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get user's active trip
+ * @route GET /api/trips/active
+ */
+exports.getActiveTrip = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Check if user is a driver
+    const driver = await Driver.findOne({ where: { userId } });
+    
+    let whereConditions;
+    if (driver) {
+      // For drivers
+      whereConditions = {
+        driverId: driver.id,
+        status: {
+          [Op.in]: ['assigned', 'active']
+        }
+      };
+    } else {
+      // For clients
+      whereConditions = {
+        clientId: userId,
+        status: {
+          [Op.in]: ['requested', 'assigned', 'active']
+        }
+      };
+    }
+
+    // Find active trip
+    const trip = await Trip.findOne({
+      where: whereConditions,
+      include: [
+        { model: User, as: 'tripClient', attributes: ['id', 'firstName', 'lastName', 'phoneNumber', 'profilePhoto'] },
+        { 
+          model: Driver, 
+          as: 'tripDriver',
+          include: [{ 
+            model: User, 
+            as: 'userAccount', 
+            attributes: ['id', 'firstName', 'lastName', 'phoneNumber', 'profilePhoto'] 
+          }]
+        }
+      ]
+    });
+
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active trip found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: trip
+    });
+  } catch (error) {
+    console.error('Get active trip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching active trip',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Trigger SOS alert for a trip
+ * @route POST /api/trips/:tripId/sos
+ */
+exports.triggerSOS = async (req, res) => {
+  try {
+    const { tripId } = req.params;
+    const { location, reason } = req.body;
+    
+    // Find trip
+    const trip = await Trip.findByPk(tripId, {
+      include: [
+        { model: User, as: 'tripClient' },
+        { 
+          model: Driver, 
+          as: 'tripDriver',
+          include: [{ model: User, as: 'userAccount' }]
+        }
+      ]
+    });
+
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found'
+      });
+    }
+
+    // Check if user has permission to trigger SOS for this trip
+    if (req.user.role !== 'admin' && 
+        req.user.id !== trip.clientId && 
+        (!trip.driver || req.user.id !== trip.driver.userId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to trigger SOS for this trip'
+      });
+    }
+
+    // Create SOS record
+    const sos = {
+      tripId: trip.id,
+      userId: req.user.id,
+      location: location || trip.currentLocation,
+      reason,
+      status: 'active',
+      createdAt: new Date()
+    };
+
+    // Update trip with SOS flag
+    trip.hasSOS = true;
+    trip.sosDetails = sos;
+    await trip.save();
+
+    // Notify all relevant parties
+
+    // Notify client if SOS triggered by driver
+    if (req.user.id !== trip.clientId) {
+      await Notification.create({
+        userId: trip.clientId,
+        type: 'emergency',
+        title: 'Emergency Alert',
+        message: 'An emergency has been reported for your trip. Emergency services have been notified.',
+        data: { tripId: trip.id },
+        channel: 'app',
+        priority: 'critical'
+      });
+    }
+
+    // Notify driver if SOS triggered by client
+    if (trip.driver && trip.driver.userId && req.user.id !== trip.driver.userId) {
+      await Notification.create({
+        userId: trip.driver.userId,
+        type: 'emergency',
+        title: 'Emergency Alert',
+        message: 'An emergency has been reported for your trip. Emergency services have been notified.',
+        data: { tripId: trip.id },
+        channel: 'app',
+        priority: 'critical'
+      });
+    }
+
+    // Notify all admins
+    const admins = await User.findAll({
+      where: { role: 'admin', isActive: true }
+    });
+
+    for (const admin of admins) {
+      await Notification.create({
+        userId: admin.id,
+        type: 'emergency',
+        title: 'SOS Alert',
+        message: `Emergency alert triggered for Trip ${trip.id}. User: ${req.user.firstName} ${req.user.lastName}`,
+        data: { 
+          tripId: trip.id,
+          location: sos.location,
+          reason: sos.reason
+        },
+        channel: 'app',
+        priority: 'critical'
+      });
+    }
+
+    // In a real app, this would contact emergency services
+    // For now, just log the emergency
+    console.log(`EMERGENCY: SOS triggered for trip ${trip.id} by user ${req.user.id}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'SOS alert triggered successfully',
+      data: {
+        sosId: Date.now().toString(),
+        tripId: trip.id,
+        status: 'active',
+        message: 'Emergency services have been notified'
+      }
+    });
+  } catch (error) {
+    console.error('Trigger SOS error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error triggering SOS alert',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

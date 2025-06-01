@@ -181,17 +181,17 @@ exports.getUserTrips = async (req, res) => {
       include: [
         {
           model: User,
-          as: 'client',
+          as: 'tripClient',
           attributes: ['id', 'firstName', 'lastName']
         },
         {
           model: Driver,
-          as: 'driver',
+          as: 'tripDriver',
           attributes: ['id', 'userId', 'vehicleType', 'vehicleMake', 'vehicleModel'],
           include: [
             {
               model: User,
-              as: 'user',
+              as: 'userAccount',
               attributes: ['id', 'firstName', 'lastName', 'phoneNumber', 'rating']
             }
           ]
@@ -619,6 +619,648 @@ exports.deactivateAccount = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error deactivating account',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get user profile
+ * @route GET /api/users/profile
+ */
+exports.getProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const user = await User.findByPk(userId, {
+      attributes: { 
+        exclude: ['password', 'verificationToken', 'resetPasswordToken', 'resetPasswordExpires'] 
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching profile',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Update user profile
+ * @route PUT /api/users/profile
+ */
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Fields that can be updated
+    const allowedFields = [
+      'firstName', 'lastName', 'phoneNumber', 'preferredLanguage'
+    ];
+    
+    // Update allowed fields
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        user[field] = req.body[field];
+      }
+    });
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        preferredLanguage: user.preferredLanguage
+      }
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating profile',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Update user profile photo
+ * @route PUT /api/users/profile/photo
+ */
+exports.updateProfilePhoto = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // In a real app, handle file upload here
+    // For now, just update a photoUrl field
+    const { photoUrl } = req.body;
+    
+    if (!photoUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Photo URL is required'
+      });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    user.photoUrl = photoUrl;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile photo updated successfully',
+      data: {
+        photoUrl: user.photoUrl
+      }
+    });
+  } catch (error) {
+    console.error('Update profile photo error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating profile photo',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get user trip history
+ * @route GET /api/users/trips
+ */
+exports.getTripHistory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { page = 1, limit = 10, status } = req.query;
+    
+    const where = { userId };
+    if (status) {
+      where.status = status;
+    }
+    
+    const offset = (page - 1) * limit;
+    
+    const { count, rows: trips } = await Trip.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        trips,
+        pagination: {
+          total: count,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: Math.ceil(count / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get trip history error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching trip history',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get user ratings
+ * @route GET /api/users/ratings
+ */
+exports.getUserRatings = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // In a real app, fetch ratings from a ratings model
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      data: {
+        averageRating: 4.7,
+        totalRatings: 23,
+        ratings: [
+          { id: 1, score: 5, comment: 'Great passenger!', date: new Date() },
+          { id: 2, score: 4, comment: 'Good communication', date: new Date() }
+        ]
+      }
+    });
+  } catch (error) {
+    console.error('Get user ratings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching user ratings',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get user wallet
+ * @route GET /api/users/wallet
+ */
+exports.getWallet = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const user = await User.findByPk(userId, {
+      attributes: ['id', 'walletBalance']
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        balance: user.walletBalance || 0,
+        currency: 'XOF'
+      }
+    });
+  } catch (error) {
+    console.error('Get wallet error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching wallet',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get wallet transactions
+ * @route GET /api/users/wallet/transactions
+ */
+exports.getWalletTransactions = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { page = 1, limit = 10 } = req.query;
+    
+    // In a real app, fetch from a transactions model
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      data: {
+        transactions: [
+          { id: 1, type: 'topup', amount: 5000, date: new Date(), status: 'completed' },
+          { id: 2, type: 'payment', amount: -2500, date: new Date(), status: 'completed' }
+        ],
+        pagination: {
+          total: 2,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get wallet transactions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching wallet transactions',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Add funds to wallet
+ * @route POST /api/users/wallet/topup
+ */
+exports.topupWallet = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { amount, paymentMethod } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid amount is required'
+      });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // In a real app, process payment here
+    // For now, just update the balance
+    user.walletBalance = (user.walletBalance || 0) + parseFloat(amount);
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Wallet topped up successfully',
+      data: {
+        newBalance: user.walletBalance,
+        currency: 'XOF',
+        transactionId: Date.now().toString()
+      }
+    });
+  } catch (error) {
+    console.error('Topup wallet error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error topping up wallet',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Create a support ticket
+ * @route POST /api/users/support/tickets
+ */
+exports.createSupportTicket = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { subject, message, category } = req.body;
+    
+    if (!subject || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Subject and message are required'
+      });
+    }
+
+    // In a real app, create a ticket in the database
+    // For now, return a placeholder response
+    res.status(201).json({
+      success: true,
+      message: 'Support ticket created successfully',
+      data: {
+        ticketId: Date.now().toString(),
+        subject,
+        status: 'open',
+        createdAt: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Create support ticket error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating support ticket',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get user support tickets
+ * @route GET /api/users/support/tickets
+ */
+exports.getSupportTickets = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { status, page = 1, limit = 10 } = req.query;
+    
+    // In a real app, fetch tickets from the database
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      data: {
+        tickets: [
+          {
+            id: '1',
+            subject: 'Payment issue',
+            status: 'open',
+            category: 'payment',
+            createdAt: new Date(),
+            lastUpdated: new Date()
+          },
+          {
+            id: '2',
+            subject: 'Driver complaint',
+            status: 'closed',
+            category: 'driver',
+            createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            lastUpdated: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)
+          }
+        ],
+        pagination: {
+          total: 2,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          pages: 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get support tickets error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching support tickets',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get a specific support ticket
+ * @route GET /api/users/support/tickets/:ticketId
+ */
+exports.getSupportTicketById = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { ticketId } = req.params;
+    
+    // In a real app, fetch the ticket from the database
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      data: {
+        id: ticketId,
+        subject: 'Payment issue',
+        status: 'open',
+        category: 'payment',
+        createdAt: new Date(),
+        lastUpdated: new Date(),
+        messages: [
+          {
+            id: '1',
+            sender: 'user',
+            message: 'I have an issue with my payment',
+            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000)
+          },
+          {
+            id: '2',
+            sender: 'support',
+            message: 'We are looking into this issue',
+            timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000)
+          }
+        ]
+      }
+    });
+  } catch (error) {
+    console.error('Get support ticket error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching support ticket',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Add a message to a support ticket
+ * @route POST /api/users/support/tickets/:ticketId/messages
+ */
+exports.addTicketMessage = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { ticketId } = req.params;
+    const { message } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message content is required'
+      });
+    }
+
+    // In a real app, add the message to the ticket in the database
+    // For now, return a placeholder response
+    res.status(201).json({
+      success: true,
+      message: 'Message added to ticket successfully',
+      data: {
+        id: Date.now().toString(),
+        ticketId,
+        sender: 'user',
+        message,
+        timestamp: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Add ticket message error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding message to ticket',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Update notification preferences
+ * @route PUT /api/users/notification-preferences
+ */
+exports.updateNotificationPreferences = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { email, sms, push, marketing } = req.body;
+    
+    // In a real app, update the preferences in the database
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      message: 'Notification preferences updated successfully',
+      data: {
+        preferences: {
+          email: email !== undefined ? email : true,
+          sms: sms !== undefined ? sms : true,
+          push: push !== undefined ? push : true,
+          marketing: marketing !== undefined ? marketing : false
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Update notification preferences error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating notification preferences',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Get favorite locations
+ * @route GET /api/users/favorites
+ */
+exports.getFavoriteLocations = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // In a real app, fetch favorites from the database
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      data: {
+        locations: [
+          {
+            id: '1',
+            name: 'Home',
+            address: '123 Main St, Dakar',
+            latitude: 14.7167,
+            longitude: -17.4677
+          },
+          {
+            id: '2',
+            name: 'Work',
+            address: '456 Business Ave, Dakar',
+            latitude: 14.7283,
+            longitude: -17.4444
+          }
+        ]
+      }
+    });
+  } catch (error) {
+    console.error('Get favorite locations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching favorite locations',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Add a favorite location
+ * @route POST /api/users/favorites
+ */
+exports.addFavoriteLocation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, address, latitude, longitude } = req.body;
+    
+    if (!name || !address || !latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, address, latitude, and longitude are required'
+      });
+    }
+
+    // In a real app, add the location to the database
+    // For now, return a placeholder response
+    res.status(201).json({
+      success: true,
+      message: 'Favorite location added successfully',
+      data: {
+        id: Date.now().toString(),
+        name,
+        address,
+        latitude,
+        longitude
+      }
+    });
+  } catch (error) {
+    console.error('Add favorite location error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding favorite location',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
+ * Delete a favorite location
+ * @route DELETE /api/users/favorites/:locationId
+ */
+exports.deleteFavoriteLocation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { locationId } = req.params;
+    
+    // In a real app, delete the location from the database
+    // For now, return a placeholder response
+    res.status(200).json({
+      success: true,
+      message: 'Favorite location deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete favorite location error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting favorite location',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

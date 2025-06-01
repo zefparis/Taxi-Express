@@ -99,9 +99,6 @@ const FraudLog = sequelize.define('FraudLog', {
   timestamps: true
 });
 
-// Associations
-FraudLog.belongsTo(User, { foreignKey: 'userId', as: 'user' });
-FraudLog.belongsTo(Trip, { foreignKey: 'tripId', as: 'trip' });
-FraudLog.belongsTo(User, { foreignKey: 'reviewedBy', as: 'reviewer' });
+// Associations are defined in models/index.js
 
 module.exports = FraudLog;

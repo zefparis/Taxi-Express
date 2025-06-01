@@ -90,7 +90,6 @@ const Notification = sequelize.define('Notification', {
   timestamps: true
 });
 
-// Associations
-Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+// Associations are defined in models/index.js
 
 module.exports = Notification;

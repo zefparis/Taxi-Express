@@ -23,6 +23,7 @@ const paymentRoutes = require('./routes/payment.routes');
 const notificationRoutes = require('./routes/notification.routes');
 const adminRoutes = require('./routes/admin.routes');
 const fraudRoutes = require('./routes/fraud.routes');
+const chatRoutes = require('./routes/chat.routes');
 
 // Import database connection
 const { sequelize } = require('./config/database');
@@ -90,6 +91,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/fraud', fraudRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Swagger API docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
@@ -116,7 +118,7 @@ app.use((err, req, res, next) => {
 setupSocketHandlers(io);
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001; // Changed from 5000 to 5001 to avoid port conflicts
 server.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   

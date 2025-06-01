@@ -8,6 +8,7 @@ const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { validateInput } = require('../middlewares/inputValidation.middleware');
 const { rateLimiter } = require('../middlewares/rateLimit.middleware');
+const { authenticate } = require('../middlewares/auth.middleware');
 
 /**
  * @route POST /api/auth/register
@@ -70,6 +71,6 @@ router.post('/logout', authController.logout);
  * @description Get current user profile
  * @access Private
  */
-router.get('/me', authController.getCurrentUser);
+router.get('/me', authenticate, authController.getProfile);
 
 module.exports = router;
