@@ -4,10 +4,21 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
+// Contexts
+import { AuthProvider } from './contexts/AuthContext';
+import { BookingProvider } from './contexts/BookingContext';
+
+// Importez CSS global ici si nécessaire
+import './App.css';
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <AuthProvider>
+      <BookingProvider>
+        <App />
+      </BookingProvider>
+    </AuthProvider>
   </React.StrictMode>
 );
 
