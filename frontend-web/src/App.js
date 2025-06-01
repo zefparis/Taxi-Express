@@ -18,10 +18,15 @@ import { useAuth } from './contexts/AuthContext';
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
   
+  // Commenté temporairement pour le développement
+  // Décommentez cette section en production
+  /*
   if (!isAuthenticated()) {
     return <Navigate to="/login" replace />;
   }
+  */
   
+  // Permet l'accès à toutes les pages sans authentification pendant le développement
   return children;
 };
 
