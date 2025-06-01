@@ -16,20 +16,13 @@ import { useAuth } from './contexts/AuthContext';
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
-  // Nous gardons useAuth() pour maintenir la structure mais sans déstructurer isAuthenticated
-  // pour éviter l'erreur ESLint 'no-unused-vars'
-  useAuth();
-  
-  // Commenté temporairement pour le développement
-  // Décommentez cette section en production
-  /*
   const { isAuthenticated } = useAuth();
+  
+  // Vérification de l'authentification maintenant que l'authentification fonctionne
   if (!isAuthenticated()) {
     return <Navigate to="/login" replace />;
   }
-  */
   
-  // Permet l'accès à toutes les pages sans authentification pendant le développement
   return children;
 };
 
