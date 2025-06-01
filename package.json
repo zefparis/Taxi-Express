@@ -5,8 +5,11 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon backend/src/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon index.js",
+    "backend:dev": "nodemon backend/src/server.js",
+    "test": "jest",
+    "lint": "eslint .",
+    "seed": "node backend/scripts/seed.js"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -15,7 +18,9 @@
     "taxi",
     "mobility",
     "express",
-    "api"
+    "api",
+    "drc",
+    "ai"
   ],
   "author": "Taxi-Express Team",
   "license": "MIT",

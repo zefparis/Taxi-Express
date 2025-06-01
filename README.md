@@ -2,13 +2,27 @@
 
 A modern taxi booking and management application.
 
-## Project Structure
+## Structure du projet (Monorepo)
 
-- `backend/` - Server-side code and API
-- `docs/` - Documentation
-- `frontend-mobile/` - Mobile application
-- `frontend-web/` - Web application
-- `scripts/` - Utility scripts
+Ce projet suit une architecture monorepo avec une séparation claire entre le backend et les frontends :
+
+```text
+/
+├── backend/           # Code serveur Node.js/Express
+│   └── src/           # Code source du backend
+│       └── server.js  # Serveur principal
+├── frontend-web/      # Application web React
+│   └── package.json   # Dépendances spécifiques au frontend web
+├── frontend-mobile/   # Application mobile React Native
+│   └── package.json   # Dépendances spécifiques au frontend mobile
+├── index.js           # Point d'entrée principal pour le déploiement
+├── package.json       # Configuration du backend (racine du projet)
+├── .env               # Variables d'environnement
+├── .gitignore         # Fichiers ignorés par Git
+├── Procfile           # Configuration pour Heroku
+├── railway.json       # Configuration pour Railway
+└── scripts/           # Scripts utilitaires
+```
 
 ## Getting Started
 
@@ -16,15 +30,30 @@ Instructions for setting up and running the project will be added here.
 
 ## Déploiement cloud
 
-Le projet est structuré pour être compatible avec les plateformes de déploiement comme Railway, Render et Heroku :
+Le projet est structuré comme un monorepo propre pour garantir une compatibilité optimale avec les plateformes de déploiement comme Railway, Render et Heroku :
+
+### Structure de déploiement
 
 - **Point d'entrée unique** : Le fichier `index.js` à la racine sert de point d'entrée principal pour toutes les plateformes de déploiement.
 
-- **Configuration package.json** : Le fichier `package.json` à la racine pointe vers `index.js` comme fichier principal et utilise la commande `node index.js` comme script de démarrage.
+- **Configuration package.json unifiée** : Un seul fichier `package.json` à la racine du projet qui :
+  - Définit `"main": "index.js"` comme point d'entrée
+  - Utilise `"start": "node index.js"` comme script de démarrage
+  - Contient toutes les dépendances nécessaires au backend
 
-- **Procfile** : Inclus à la racine pour Heroku et autres plateformes compatibles, avec la commande `web: node index.js`.
+- **Procfile standardisé** : Un seul Procfile à la racine avec la commande `web: node index.js`.
 
-- **Architecture adaptative** : Le point d'entrée `index.js` charge l'application principale depuis le dossier backend ou utilise un serveur de secours si nécessaire.
+- **Configuration Railway** : Le fichier `railway.json` à la racine définit les commandes de build et de démarrage.
+
+- **Séparation frontend/backend** : Les frontends (web et mobile) conservent leurs propres `package.json` pour gérer leurs dépendances spécifiques.
+
+### Fonctionnement du déploiement
+
+Le point d'entrée `index.js` est conçu pour :
+
+1. Charger les variables d'environnement via dotenv
+2. Importer l'application principale depuis `./backend/src/server.js`
+3. Fournir un serveur de secours en cas d'échec de chargement du serveur principal
 
 ### Vérification du déploiement
 
@@ -32,7 +61,10 @@ Une fois déployée, l'API devrait répondre à l'endpoint GET / avec le message
 
 ### Notes importantes
 
-Cette structure est **impérative** pour le bon fonctionnement avec Railway/Nixpacks, Render et Heroku. Ne pas modifier la structure des points d'entrée sans adapter les configurations de déploiement.
+- Cette structure monorepo est **impérative** pour le bon fonctionnement avec Railway/Nixpacks, Render et Heroku.
+- Ne pas créer de fichiers de configuration en double dans les sous-dossiers.
+- Toujours déployer depuis la racine du projet, pas depuis un sous-dossier.
+- Les variables d'environnement doivent être configurées sur la plateforme de déploiement selon le modèle du fichier `.env.example`.
 
 ## License
 

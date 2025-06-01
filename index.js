@@ -3,11 +3,16 @@
  * This file serves as the main entry point for deployment platforms like Railway, Render, and Heroku
  */
 
+// Load environment variables
+require('dotenv').config();
+
 // Import the main server application from the backend directory
 try {
-  // First try to load the server from the compiled build if it exists
-  const server = require('./backend/src/server.js');
-  console.log('Taxi-Express API server started from backend/src/server.js');
+  // Load the server from the backend directory
+  console.log('Starting Taxi-Express API server...');
+  // We don't assign the require to a variable because server.js already exports its own objects
+  require('./backend/src/server.js');
+  console.log('Taxi-Express API server started successfully');
 } catch (error) {
   console.error('Failed to load server from backend directory:', error.message);
   
