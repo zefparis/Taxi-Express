@@ -1,12 +1,12 @@
 import React from 'react';
 import Layout from '../../components/layout/Layout';
-import Register from '../../components/auth/Register';
+import SimpleRegister from '../../components/auth/SimpleRegister';
 
 const RegisterPage = () => {
   return (
     <Layout>
       <div className="container py-5">
-        <Register />
+        <SimpleRegister />
       </div>
     </Layout>
   );

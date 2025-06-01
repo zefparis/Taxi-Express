@@ -1,12 +1,12 @@
 import React from 'react';
 import Layout from '../../components/layout/Layout';
-import Login from '../../components/auth/Login';
+import SimpleLogin from '../../components/auth/SimpleLogin';
 
 const LoginPage = () => {
   return (
     <Layout>
       <div className="container py-5">
-        <Login />
+        <SimpleLogin />
       </div>
     </Layout>
   );

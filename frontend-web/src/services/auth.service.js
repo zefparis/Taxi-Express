@@ -1,34 +1,89 @@
 import api from './api';
 
 const AuthService = {
-  // Fonction pour s'inscrire
+  // Fonction pour s'inscrire (version simulée sans appel API)
   register: async (userData) => {
-    try {
-      const response = await api.post('/auth/register', userData);
-      if (response.data.success) {
+    return new Promise((resolve) => {
+      // Simuler un délai réseau
+      setTimeout(() => {
+        // Créer un faux token JWT
+        const fakeToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEyMzQ1Njc4OTAiLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+        
+        // Créer un faux utilisateur
+        const fakeUser = {
+          id: '1234567890',
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          email: userData.email,
+          phoneNumber: userData.phoneNumber,
+          role: userData.role || 'client',
+          isVerified: false
+        };
+        
         // Stocker le token et les informations utilisateur
-        localStorage.setItem('token', response.data.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.data.user));
-      }
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+        localStorage.setItem('token', fakeToken);
+        localStorage.setItem('user', JSON.stringify(fakeUser));
+        
+        // Retourner une réponse simulée
+        resolve({
+          success: true,
+          message: 'Inscription réussie',
+          data: {
+            token: fakeToken,
+            user: fakeUser
+          }
+        });
+      }, 1000);
+    });
   },
 
-  // Fonction pour se connecter
+  // Fonction pour se connecter (version simulée sans appel API)
   login: async (email, password) => {
-    try {
-      const response = await api.post('/auth/login', { email, password });
-      if (response.data.success) {
-        // Stocker le token et les informations utilisateur
-        localStorage.setItem('token', response.data.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.data.user));
-      }
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+    return new Promise((resolve, reject) => {
+      // Simuler un délai réseau
+      setTimeout(() => {
+        // Vérification basique des identifiants (pour démo uniquement)
+        if (email && password.length >= 6) {
+          // Créer un faux token JWT
+          const fakeToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEyMzQ1Njc4OTAiLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+          
+          // Créer un faux utilisateur basé sur l'email fourni
+          const fakeUser = {
+            id: '1234567890',
+            firstName: 'Utilisateur',
+            lastName: 'Test',
+            email: email,
+            phoneNumber: '+243123456789',
+            role: 'client',
+            isVerified: true
+          };
+          
+          // Stocker le token et les informations utilisateur
+          localStorage.setItem('token', fakeToken);
+          localStorage.setItem('user', JSON.stringify(fakeUser));
+          
+          // Retourner une réponse simulée
+          resolve({
+            success: true,
+            message: 'Connexion réussie',
+            data: {
+              token: fakeToken,
+              user: fakeUser
+            }
+          });
+        } else {
+          // Simuler une erreur de connexion
+          reject({
+            response: {
+              data: {
+                success: false,
+                message: 'Email ou mot de passe invalide'
+              }
+            }
+          });
+        }
+      }, 1000);
+    });
   },
 
   // Fonction pour se déconnecter

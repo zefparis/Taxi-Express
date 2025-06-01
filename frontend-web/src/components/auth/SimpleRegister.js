@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
 
-const Register = () => {
+const SimpleRegister = () => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -16,7 +15,6 @@ const Register = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { register } = useAuth(); // Utilisation du contexte d'authentification
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -26,7 +24,7 @@ const Register = () => {
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
     
@@ -58,28 +56,34 @@ const Register = () => {
     
     setLoading(true);
 
-    try {
-      // Utiliser la fonction register du contexte d'authentification
-      const response = await register(formData);
+    // Simulation d'une inscription réussie (sans appel API)
+    setTimeout(() => {
+      // Créer un faux token JWT
+      const fakeToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEyMzQ1Njc4OTAiLCJlbWFpbCI6ImZha2VAZXhhbXBsZS5jb20iLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
       
-      if (response.success) {
-        setSuccess(true);
-        
-        // Rediriger vers la page d'accueil après 2 secondes
-        setTimeout(() => {
-          navigate('/');
-        }, 2000);
-      } else {
-        setError(response.message || 'Erreur lors de l\'inscription');
-      }
-    } catch (err) {
-      setError(
-        err.response?.data?.message || 
-        'Erreur lors de l\'inscription. Veuillez réessayer.'
-      );
-    } finally {
+      // Créer un faux utilisateur
+      const fakeUser = {
+        id: '1234567890',
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        role: formData.role || 'client',
+        isVerified: false
+      };
+      
+      // Stocker le token et les informations utilisateur
+      localStorage.setItem('token', fakeToken);
+      localStorage.setItem('user', JSON.stringify(fakeUser));
+      
+      setSuccess(true);
       setLoading(false);
-    }
+      
+      // Rediriger vers la page d'accueil après 2 secondes
+      setTimeout(() => {
+        navigate('/');
+      }, 2000);
+    }, 1500);
   };
 
   return (
@@ -165,22 +169,6 @@ const Register = () => {
               </div>
               
               <div className="mb-3">
-                <label htmlFor="role" className="form-label">
-                  Je m'inscris en tant que
-                </label>
-                <select
-                  className="form-select"
-                  id="role"
-                  name="role"
-                  value={formData.role}
-                  onChange={handleChange}
-                >
-                  <option value="client">Client</option>
-                  <option value="driver">Chauffeur</option>
-                </select>
-              </div>
-              
-              <div className="mb-3">
                 <label htmlFor="password" className="form-label">
                   Mot de passe
                 </label>
@@ -193,6 +181,9 @@ const Register = () => {
                   onChange={handleChange}
                   required
                 />
+                <div className="form-text">
+                  Le mot de passe doit contenir au moins 6 caractères.
+                </div>
               </div>
               
               <div className="mb-3">
@@ -210,16 +201,50 @@ const Register = () => {
                 />
               </div>
               
+              <div className="mb-3">
+                <label className="form-label">Je m'inscris en tant que</label>
+                <div>
+                  <div className="form-check form-check-inline">
+                    <input
+                      className="form-check-input"
+                      type="radio"
+                      name="role"
+                      id="roleClient"
+                      value="client"
+                      checked={formData.role === 'client'}
+                      onChange={handleChange}
+                    />
+                    <label className="form-check-label" htmlFor="roleClient">
+                      Client
+                    </label>
+                  </div>
+                  <div className="form-check form-check-inline">
+                    <input
+                      className="form-check-input"
+                      type="radio"
+                      name="role"
+                      id="roleDriver"
+                      value="driver"
+                      checked={formData.role === 'driver'}
+                      onChange={handleChange}
+                    />
+                    <label className="form-check-label" htmlFor="roleDriver">
+                      Chauffeur
+                    </label>
+                  </div>
+                </div>
+              </div>
+              
               <button
                 type="submit"
-                className="btn btn-primary w-100"
+                className="btn btn-primary w-100 mt-3"
                 disabled={loading}
               >
                 {loading ? 'Inscription en cours...' : 'S\'inscrire'}
               </button>
               
               <div className="text-center mt-3">
-                <span>Déjà un compte ? </span>
+                <span>Déjà inscrit ? </span>
                 <Link to="/login" className="text-decoration-none">
                   Se connecter
                 </Link>
@@ -232,4 +257,4 @@ const Register = () => {
   );
 };
 
-export default Register;
+export default SimpleRegister;

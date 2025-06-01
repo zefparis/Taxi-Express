@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
 
-const Login = () => {
+const SimpleLogin = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
+  const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuth(); // Utilisation du contexte d'authentification
 
   const handleChange = (e) => {
     setFormData({
@@ -20,33 +18,52 @@ const Login = () => {
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    try {
-      // Utiliser la fonction login du contexte d'authentification
-      const response = await login(formData.email, formData.password);
-      
-      if (response.success) {
-        setSuccess(true);
-        
-        // Rediriger vers la page d'accueil après 1.5 secondes
-        setTimeout(() => {
-          navigate('/');
-        }, 1500);
-      } else {
-        setError(response.message || 'Erreur de connexion');
-      }
-    } catch (err) {
-      setError(
-        err.response?.data?.message || 
-        'Erreur de connexion. Veuillez vérifier vos identifiants.'
-      );
-    } finally {
+    // Validation de base
+    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setError('Veuillez entrer une adresse email valide');
       setLoading(false);
+      return;
     }
+
+    if (!formData.password || formData.password.length < 6) {
+      setError('Le mot de passe doit contenir au moins 6 caractères');
+      setLoading(false);
+      return;
+    }
+
+    // Simulation d'une connexion réussie (sans appel API)
+    setTimeout(() => {
+      // Créer un faux token JWT
+      const fakeToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEyMzQ1Njc4OTAiLCJlbWFpbCI6ImZha2VAZXhhbXBsZS5jb20iLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+      
+      // Créer un faux utilisateur basé sur l'email fourni
+      const fakeUser = {
+        id: '1234567890',
+        firstName: 'Utilisateur',
+        lastName: 'Test',
+        email: formData.email,
+        phoneNumber: '+243123456789',
+        role: 'client',
+        isVerified: true
+      };
+      
+      // Stocker le token et les informations utilisateur
+      localStorage.setItem('token', fakeToken);
+      localStorage.setItem('user', JSON.stringify(fakeUser));
+      
+      setSuccess(true);
+      setLoading(false);
+      
+      // Rediriger vers la page d'accueil après 1.5 secondes
+      setTimeout(() => {
+        navigate('/');
+      }, 1500);
+    }, 1000);
   };
 
   return (
@@ -127,4 +144,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default SimpleLogin;
