@@ -24,6 +24,17 @@ const ProfilePage = () => {
   const [message, setMessage] = useState('');
   const [bookingHistory, setBookingHistory] = useState([]);
   
+  // Définir fetchBookingHistory avec useCallback pour éviter les re-rendus inutiles
+  const fetchBookingHistory = React.useCallback(async () => {
+    try {
+      const response = await AuthService.getUserBookings();
+      setBookingHistory(response.data);
+    } catch (err) {
+      setError('Impossible de charger l\'historique des réservations');
+      console.error(err);
+    }
+  }, [setError]);
+  
   useEffect(() => {
     if (currentUser) {
       setFormData({
@@ -43,16 +54,6 @@ const ProfilePage = () => {
       navigate('/login');
     }
   }, [currentUser, navigate, fetchBookingHistory]);
-  
-  const fetchBookingHistory = async () => {
-    try {
-      const response = await AuthService.getUserBookings();
-      setBookingHistory(response.data);
-    } catch (err) {
-      setError('Impossible de charger l\'historique des réservations');
-      console.error(err);
-    }
-  };
   
   const handleChange = (e) => {
     const { name, value } = e.target;

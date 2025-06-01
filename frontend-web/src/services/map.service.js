@@ -5,9 +5,7 @@
 // URL de base pour les requêtes d'API de géocodage (OpenStreetMap Nominatim)
 const GEOCODING_API_URL = process.env.REACT_APP_NOMINATIM_URL || 'https://nominatim.openstreetmap.org';
 
-// Coordonnées par défaut (centre de Dakar, Sénégal)
-const DEFAULT_LAT = parseFloat(process.env.REACT_APP_DEFAULT_LAT || '14.7167');
-const DEFAULT_LNG = parseFloat(process.env.REACT_APP_DEFAULT_LNG || '-17.4677');
+// Note: Les coordonnées par défaut sont définies dans getCurrentPosition comme fallback
 
 /**
  * Convertit une adresse en coordonnées géographiques (géocodage)

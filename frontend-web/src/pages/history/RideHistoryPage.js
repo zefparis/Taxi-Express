@@ -17,16 +17,8 @@ const RideHistoryPage = () => {
   const [comment, setComment] = useState('');
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   
-  useEffect(() => {
-    if (!currentUser) {
-      navigate('/login');
-      return;
-    }
-    
-    fetchBookingHistory();
-  }, [currentUser, currentPage, navigate, fetchBookingHistory]);
-  
-  const fetchBookingHistory = async () => {
+  // Définir fetchBookingHistory avec useCallback pour éviter les re-rendus inutiles
+  const fetchBookingHistory = React.useCallback(async () => {
     try {
       const response = await getUserBookingHistory(currentPage, 10);
       setBookings(response.data.bookings);
@@ -34,7 +26,16 @@ const RideHistoryPage = () => {
     } catch (err) {
       console.error('Erreur lors de la récupération de l\'historique :', err);
     }
-  };
+  }, [getUserBookingHistory, currentPage]);
+  
+  useEffect(() => {
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    
+    fetchBookingHistory();
+  }, [currentUser, fetchBookingHistory, navigate]);
   
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
