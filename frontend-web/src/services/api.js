@@ -40,4 +40,17 @@ api.interceptors.response.use(
   }
 );
 
+// Fonction pour vérifier l'état de l'API
+const checkApiStatus = async () => {
+  try {
+    const response = await api.get('/');
+    return response.data;
+  } catch (error) {
+    console.error('Erreur lors de la vérification de l\'état de l\'API:', error);
+    throw error;
+  }
+};
+
+// Exporter l'instance api et les fonctions utilitaires
+export { checkApiStatus };
 export default api;
