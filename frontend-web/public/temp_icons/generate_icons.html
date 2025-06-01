@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Générer des icônes Taxi Express</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+    }
+    .icon-container {
+      margin: 20px auto;
+      background-color: #007bff;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+    }
+    .icon-192 {
+      width: 192px;
+      height: 192px;
+      font-size: 24px;
+    }
+    .icon-512 {
+      width: 512px;
+      height: 512px;
+      font-size: 64px;
+    }
+    .taxi-text {
+      margin-bottom: 10px;
+    }
+    .express-text {
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <h1>Générateur d'icônes Taxi Express</h1>
+  
+  <div id="icon192" class="icon-container icon-192">
+    <div class="taxi-text">TAXI</div>
+    <div class="express-text">EXPRESS</div>
+  </div>
+  
+  <div id="icon512" class="icon-container icon-512">
+    <div class="taxi-text">TAXI</div>
+    <div class="express-text">EXPRESS</div>
+  </div>
+  
+  <button onclick="generateIcons()">Générer et télécharger les icônes</button>
+  
+  <script>
+    function generateIcons() {
+      // Générer l'icône 192x192
+      html2canvas(document.getElementById('icon192')).then(function(canvas) {
+        const link = document.createElement('a');
+        link.download = 'logo192.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+      
+      // Générer l'icône 512x512
+      html2canvas(document.getElementById('icon512')).then(function(canvas) {
+        const link = document.createElement('a');
+        link.download = 'logo512.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+    }
+  </script>
+  
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+</body>
+</html>

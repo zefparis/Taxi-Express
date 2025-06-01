@@ -1,9 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import Layout from '../../components/layout/Layout';
 
 const HomePage = () => {
   return (
-    <div className="home-page">
+    <Layout>
+      <div className="home-page">
       {/* Hero Section */}
       <section className="hero bg-dark text-white py-5 mb-5">
         <div className="container">
@@ -238,7 +240,8 @@ const HomePage = () => {
           </div>
         </div>
       </section>
-    </div>
+      </div>
+    </Layout>
   );
 };
 

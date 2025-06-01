@@ -1,10 +1,18 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import './Navbar.css';
 
 const Navbar = () => {
   const { currentUser, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [expanded, setExpanded] = useState(false);
+  
+  // Ferme le menu mobile lorsqu'on navigue vers une nouvelle page
+  useEffect(() => {
+    setExpanded(false);
+  }, [location]);
 
   const handleLogout = async () => {
     try {
@@ -16,7 +24,7 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav className="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
       <div className="container">
         <Link className="navbar-brand" to="/">
           <span className="brand-text">Taxi Express</span>
@@ -24,15 +32,14 @@ const Navbar = () => {
         <button
           className="navbar-toggler"
           type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarNav"
+          onClick={() => setExpanded(!expanded)}
           aria-controls="navbarNav"
-          aria-expanded="false"
+          aria-expanded={expanded ? "true" : "false"}
           aria-label="Toggle navigation"
         >
           <span className="navbar-toggler-icon"></span>
         </button>
-        <div className="collapse navbar-collapse" id="navbarNav">
+        <div className={`collapse navbar-collapse ${expanded ? 'show' : ''}`} id="navbarNav">
           <ul className="navbar-nav me-auto">
             <li className="nav-item">
               <Link className="nav-link" to="/">
