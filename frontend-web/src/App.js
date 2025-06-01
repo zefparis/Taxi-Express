@@ -10,6 +10,9 @@ import BookingPage from './pages/booking/BookingPage';
 import ProfilePage from './pages/profile/ProfilePage';
 import RideHistoryPage from './pages/history/RideHistoryPage';
 import SettingsPage from './pages/settings/SettingsPage';
+import ServicesPage from './pages/services/ServicesPage';
+import AboutPage from './pages/about/AboutPage';
+import ContactPage from './pages/contact/ContactPage';
 
 // Context
 import { useAuth } from './contexts/AuthContext';
@@ -34,6 +37,9 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/services" element={<ServicesPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         
         {/* Protected routes */}
         <Route 
